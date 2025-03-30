@@ -36,8 +36,8 @@ io.on("connection", (socket) => {
     console.log(`Received event: ${event}`, args);
   });
 
-  socket.on("join-match", ({ matchId, userName }) => {
-    if (!userName) {
+  socket.on("join-match", ({ matchId, userName, userId }) => {
+    if (!userName || !userId) {
       console.error("User attempted to join without a username");
       return;
     }
@@ -50,7 +50,7 @@ io.on("connection", (socket) => {
     // Add the player to the match if they don't already exist
     const existingPlayer = matches[matchId].find(player => player.userName === userName);
     if (!existingPlayer) {
-      matches[matchId].push({ userName, socketId: socket.id });
+      matches[matchId].push({ userName, userId, socketId: socket.id });  // Include userId here
     }
 
     socket.join(matchId);
