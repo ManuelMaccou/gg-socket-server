@@ -114,7 +114,6 @@ io.on("connection", (socket) => {
           team2,
           team1Score,
           team2Score,
-          winners: team1Score > team2Score ? team1 : team2,
         });
         io.to(matchId).emit("scores-validated", { success: true });
         console.log("⚡ 'scores-validated' event broadcasted to match room");
