@@ -101,16 +101,22 @@ io.on("connection", (socket) => {
       console.log("Team 2 valid:", team2Valid);
 
       if (team1Valid && team2Valid) {
+        const team1Score = parseInt(yourScore, 10);
+        const team2Score = parseInt(opponentsScore, 10);
+
+        console.log(`✅ Scores validated successfully for match: ${matchId}`);
+        console.log(`Emitting 'save-match' event to client with socket.id: ${socket.id}`);
+
         io.to(socket.id).emit("save-match", { 
           success: true,
           matchId,
           team1,
           team2,
-          team1Score: yourScore,
-          team2Score: opponentsScore,
+          team1Score,
+          team2Score,
         });
         io.to(matchId).emit("scores-validated", { success: true });
-        console.log("Scores validated successfully for match:", matchId);
+        console.log("⚡ 'scores-validated' event broadcasted to match room");
       } else {
         io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
         console.log("Score mismatch detected for match:", matchId);
