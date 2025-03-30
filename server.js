@@ -7,6 +7,15 @@ const httpServer = createServer();
 const io = new Server(httpServer, {
   path: '/socket.io',
   cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+/*
+const io = new Server(httpServer, {
+  path: '/socket.io',
+  cors: {
     origin: [
       "http://localhost:3000",
       "https://ggpickleball.co",
@@ -15,12 +24,17 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"]
   }
 });
+*/
 
 const matches = {};
 const scores = {};
 
 io.on("connection", (socket) => {
   console.log("User connected: ", socket.id);
+  
+  socket.onAny((event, ...args) => {
+    console.log(`Received event: ${event}`, args);
+  });
 
   socket.on("join-match", ({ matchId, userName }) => {
     if (!userName) {
