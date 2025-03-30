@@ -12,12 +12,22 @@ const io = new Server(httpServer, {
   }
 });
 
+const players = {};
+
 io.on("connection", (socket) => {
   console.log("User connected: ", socket.id);
 
-  socket.on("join-match", (matchId) => {
+  socket.on("join-match", ({ matchId, userName }) => {
+    if (!userName) {
+      console.error("User attempted to join without a username");
+      return;
+    }
+
+    players[socket.id] = { userName, matchId };
     socket.join(matchId);
-    io.to(matchId).emit("player-joined", { id: socket.id });
+
+    console.log(`${userName} joined match ${matchId}`);
+    io.to(matchId).emit("player-joined", { id: socket.id, userName });
   });
 
   socket.on("submit-score", ({ matchId, score }) => {
@@ -25,7 +35,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected: ", socket.id);
+    const player = players[socket.id];
+    if (player) {
+      console.log(`${player.userName} disconnected from match ${player.matchId}`);
+      delete players[socket.id];
+    }
   });
 });
 
