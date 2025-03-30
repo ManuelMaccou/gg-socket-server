@@ -101,6 +101,14 @@ io.on("connection", (socket) => {
       console.log("Team 2 valid:", team2Valid);
 
       if (team1Valid && team2Valid) {
+        io.to(socket.id).emit("save-match", { 
+          success: true,
+          matchId,
+          team1,
+          team2,
+          team1Score: yourScore,
+          team2Score: opponentsScore,
+        });
         io.to(matchId).emit("scores-validated", { success: true });
         console.log("Scores validated successfully for match:", matchId);
       } else {
@@ -108,6 +116,11 @@ io.on("connection", (socket) => {
         console.log("Score mismatch detected for match:", matchId);
       }
     }
+  });
+
+  socket.on("clear-scores", ({ matchId }) => {
+    delete scores[matchId];
+    console.log(`Scores cleared for match: ${matchId}`);
   });
 
   socket.on("disconnect", () => {
