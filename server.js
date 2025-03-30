@@ -7,7 +7,11 @@ const httpServer = createServer();
 const io = new Server(httpServer, {
   path: '/socket.io',
   cors: {
-    origin: "https://gg-socket-server-production.up.railway.app",
+    origin: [
+      "http://localhost:3000",
+      "https://ggpickleball.co",
+      "https://gg-socket-server-production.up.railway.app"
+    ],
     methods: ["GET", "POST"]
   }
 });
@@ -36,7 +40,6 @@ io.on("connection", (socket) => {
     }
 
     socket.join(matchId);
-
     console.log(`${userName} joined match ${matchId}`);
     
     // Emit the current player list to everyone in the room
@@ -44,6 +47,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("set-teams", ({ matchId, team1, team2 }) => {
+    if (!matches[matchId]) return;
+
+    matches[matchId].team1 = team1;
+    matches[matchId].team2 = team2;
+
     io.to(matchId).emit("teams-set", { team1, team2 });
   });
 
@@ -52,9 +60,12 @@ io.on("connection", (socket) => {
     
     scores[matchId][userName] = { yourScore, opponentsScore };
 
-    const allScores = Object.values(scores[matchId]);
+    const allScores = Object.keys(scores[matchId]).map(key => ({
+      userName: key,
+      ...scores[matchId][key]
+    }));
 
-    if (allScores.length === 4) {  // Make sure all players have submitted scores
+    if (allScores.length === 4) {  // All players have submitted scores
       const team1Scores = allScores.filter(player => team1.includes(player.userName));
       const team2Scores = allScores.filter(player => team2.includes(player.userName));
 
@@ -64,8 +75,11 @@ io.on("connection", (socket) => {
       if (team1Valid && team2Valid) {
         io.to(matchId).emit("scores-validated", { success: true });
       } else {
-        io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match" });
+        io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
       }
+
+      // Clear scores after validation to prevent re-checking the same data
+      scores[matchId] = {};
     }
   });
 
