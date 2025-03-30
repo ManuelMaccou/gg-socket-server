@@ -37,8 +37,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join-match", ({ matchId, userName, userId }) => {
-    if (!userName || !userId) {
+    if (!userName) {
       console.error("User attempted to join without a username");
+      return;
+    }
+
+    if (!userId) {
+      console.error("User attempted to join without a user ID");
       return;
     }
 
