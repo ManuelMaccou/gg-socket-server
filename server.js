@@ -7,7 +7,7 @@ const httpServer = createServer();
 const io = new Server(httpServer, {
   path: '/socket.io',
   cors: {
-    origin: "*",  // Update this to your Next.js app's URL when deployed
+    origin: "https://gg-socket-server-production.up.railway.app",
     methods: ["GET", "POST"]
   }
 });
