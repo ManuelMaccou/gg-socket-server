@@ -12,7 +12,7 @@ const io = new Server(httpServer, {
   }
 });
 
-const players = {};
+const matches = {};
 
 io.on("connection", (socket) => {
   console.log("User connected: ", socket.id);
@@ -23,11 +23,23 @@ io.on("connection", (socket) => {
       return;
     }
 
-    players[socket.id] = { userName, matchId };
+    // If the matchId doesn't exist, create a new array for players
+    if (!matches[matchId]) {
+      matches[matchId] = [];
+    }
+
+    // Add the player to the match if they don't already exist
+    const existingPlayer = matches[matchId].find(player => player.userName === userName);
+    if (!existingPlayer) {
+      matches[matchId].push({ userName, socketId: socket.id });
+    }
+
     socket.join(matchId);
 
     console.log(`${userName} joined match ${matchId}`);
-    io.to(matchId).emit("player-joined", { id: socket.id, userName });
+    
+    // Emit the current player list to everyone in the room
+    io.to(matchId).emit("player-list", matches[matchId]);
   });
 
   socket.on("submit-score", ({ matchId, score }) => {
@@ -35,10 +47,14 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    const player = players[socket.id];
-    if (player) {
-      console.log(`${player.userName} disconnected from match ${player.matchId}`);
-      delete players[socket.id];
+    console.log(`User disconnected: ${socket.id}`);
+
+    // Remove the player from the match on disconnect
+    for (const matchId in matches) {
+      matches[matchId] = matches[matchId].filter(player => player.socketId !== socket.id);
+
+      // Notify remaining players about the updated list
+      io.to(matchId).emit("player-list", matches[matchId]);
     }
   });
 });
