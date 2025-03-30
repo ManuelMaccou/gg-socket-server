@@ -31,7 +31,7 @@ const scores = {};
 
 io.on("connection", (socket) => {
   console.log("User connected: ", socket.id);
-  
+
   socket.onAny((event, ...args) => {
     console.log(`Received event: ${event}`, args);
   });
@@ -96,8 +96,10 @@ io.on("connection", (socket) => {
 
       if (team1Valid && team2Valid) {
         io.to(matchId).emit("scores-validated", { success: true });
+        console.log("Scores validated successfully for match:", matchId);
       } else {
         io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
+        console.log("Score mismatch detected for match:", matchId);
       }
 
       // Clear scores after validation to prevent re-checking the same data
