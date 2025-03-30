@@ -88,10 +88,16 @@ io.on("connection", (socket) => {
       const team2Scores = allScores.filter(player => team2.includes(player.userName));
       console.log("Team 2 scores:", team2Scores);
 
-      const team1Valid = team1Scores.every(player => player.yourScore === yourScore);
+      const team1Valid = team1Scores.every(player => 
+        player.yourScore === team1Scores[0].yourScore &&
+        player.opponentsScore === team1Scores[0].opponentsScore
+      );
       console.log("Team 1 valid:", team1Valid);
 
-      const team2Valid = team2Scores.every(player => player.opponentsScore === opponentsScore);
+      const team2Valid = team2Scores.every(player => 
+        player.yourScore === team2Scores[0].yourScore &&
+        player.opponentsScore === team2Scores[0].opponentsScore
+      );
       console.log("Team 2 valid:", team2Valid);
 
       if (team1Valid && team2Valid) {
