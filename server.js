@@ -65,12 +65,20 @@ io.on("connection", (socket) => {
       ...scores[matchId][key]
     }));
 
+    console.log("All scores:", allScores);
+
     if (allScores.length === 4) {  // All players have submitted scores
       const team1Scores = allScores.filter(player => team1.includes(player.userName));
+      console.log("Team 1 scores:", team1Scores);
+
       const team2Scores = allScores.filter(player => team2.includes(player.userName));
+      console.log("Team 2 scores:", team2Scores);
 
       const team1Valid = team1Scores.every(player => player.yourScore === yourScore);
+      console.log("Team 1 valid:", team1Valid);
+
       const team2Valid = team2Scores.every(player => player.opponentsScore === opponentsScore);
+      console.log("Team 2 valid:", team2Valid);
 
       if (team1Valid && team2Valid) {
         io.to(matchId).emit("scores-validated", { success: true });
