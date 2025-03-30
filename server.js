@@ -13,6 +13,7 @@ const io = new Server(httpServer, {
 });
 
 const matches = {};
+const scores = {};
 
 io.on("connection", (socket) => {
   console.log("User connected: ", socket.id);
@@ -42,8 +43,30 @@ io.on("connection", (socket) => {
     io.to(matchId).emit("player-list", matches[matchId]);
   });
 
-  socket.on("submit-score", ({ matchId, score }) => {
-    io.to(matchId).emit("score-update", { id: socket.id, score });
+  socket.on("set-teams", ({ matchId, team1, team2 }) => {
+    io.to(matchId).emit("teams-set", { team1, team2 });
+  });
+
+  socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore }) => {
+    if (!scores[matchId]) scores[matchId] = {};
+    
+    scores[matchId][userName] = { yourScore, opponentsScore };
+
+    const allScores = Object.values(scores[matchId]);
+
+    if (allScores.length === 4) {  // Make sure all players have submitted scores
+      const team1Scores = allScores.filter(player => team1.includes(player.userName));
+      const team2Scores = allScores.filter(player => team2.includes(player.userName));
+
+      const team1Valid = team1Scores.every(player => player.yourScore === yourScore);
+      const team2Valid = team2Scores.every(player => player.opponentsScore === opponentsScore);
+
+      if (team1Valid && team2Valid) {
+        io.to(matchId).emit("scores-validated", { success: true });
+      } else {
+        io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match" });
+      }
+    }
   });
 
   socket.on("disconnect", () => {
