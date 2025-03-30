@@ -107,9 +107,6 @@ io.on("connection", (socket) => {
         io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
         console.log("Score mismatch detected for match:", matchId);
       }
-
-      // Clear scores after validation to prevent re-checking the same data
-      scores[matchId] = {};
     }
   });
 
