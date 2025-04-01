@@ -79,7 +79,8 @@ io.on("connection", (socket) => {
     io.to(matchId).emit("teams-set", { team1, team2 });
   });
 
-  socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore }) => {
+  socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore, location }) => {
+    console.log("Location received in submit-score:", location);
     if (!scores[matchId]) scores[matchId] = {};
     
     scores[matchId][userName] = { yourScore, opponentsScore };
@@ -124,6 +125,7 @@ io.on("connection", (socket) => {
           team2,
           team1Score,
           team2Score,
+          location,
         });
         io.to(matchId).emit("scores-validated", { success: true });
         console.log("⚡ 'scores-validated' event broadcasted to match room");
