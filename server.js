@@ -112,8 +112,19 @@ io.on("connection", (socket) => {
       console.log("Team 2 valid:", team2Valid);
 
       if (team1Valid && team2Valid) {
-        const team1Score = parseInt(yourScore, 10);
-        const team2Score = parseInt(opponentsScore, 10);
+        // const team1Score = parseInt(yourScore, 10);
+        // const team2Score = parseInt(opponentsScore, 10);
+
+        const team1Score = Number(yourScore); // returns 0 if input is 0 ✅
+        const team2Score = Number(opponentsScore);
+
+        if (Number.isNaN(team1Score) || Number.isNaN(team2Score)) {
+          console.warn("Invalid score input:", yourScore, opponentsScore);
+          return;
+        }
+
+        console.log('socket your score:', team1Score);
+        console.log('socket your score:', team1Score);
 
         console.log(`✅ Scores validated successfully for match: ${matchId}`);
         console.log(`Emitting 'save-match' event to client with socket.id: ${socket.id}`);
