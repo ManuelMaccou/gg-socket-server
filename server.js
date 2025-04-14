@@ -90,16 +90,11 @@ const matches = {};
 const scores = {};
 
 io.on("connection", (socket) => {
-  console.log("User connected: ", socket.id);
-
-  console.log(`Initial rooms for socket ${socket.id}: ${Array.from(socket.rooms).join(", ")}`);
-
   socket.onAny((event, ...args) => {
     console.log(`Received event: ${event}`, args);
   });
 
   socket.on("join-match", ({ matchId, userName, userId }) => {
-    console.log(`Rooms for socket ${socket.id} after joining: ${Array.from(socket.rooms).join(", ")}`);
 
     if (!userName) {
       console.error("User attempted to join without a username");
@@ -124,7 +119,6 @@ io.on("connection", (socket) => {
 
     socket.join(matchId);
     console.log(`${userName} joined match ${matchId}`);
-    console.log(`🔍 Current rooms for socket ${socket.id}: ${Array.from(socket.rooms).join(", ")}`);
     
     // Emit the current player list to everyone in the room
     io.to(matchId).emit("player-list", matches[matchId]);
@@ -140,7 +134,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore, location }) => {
-    console.log("Location received in submit-score:", location);
     if (!scores[matchId]) scores[matchId] = {};
     
     scores[matchId][userName] = { yourScore, opponentsScore };
@@ -176,7 +169,6 @@ io.on("connection", (socket) => {
         const team2Score = parseInt(opponentsScore, 10);
 
         console.log(`✅ Scores validated successfully for match: ${matchId}`);
-        console.log(`Emitting 'save-match' event to client with socket.id: ${socket.id}`);
 
         io.to(socket.id).emit("save-match", { 
           success: true,
