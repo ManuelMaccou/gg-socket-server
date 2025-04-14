@@ -9,14 +9,16 @@ const httpServer = createServer();
 // cron.schedule('0 10 * * *', () => {
 cron.schedule('* * * * *', () => {
   const now = DateTime.now().setZone('America/Los_Angeles').toFormat('yyyy-LL-dd HH:mm:ss');
-  console.log(`🧹 Running nightly socket cleanup at ${now} PST`);
+  console.log(`\n🧹 Running socket cleanup at ${now} PST`);
 
+  // Cleanup matches
   for (const matchId in matches) {
     const room = io.sockets.adapter.rooms.get(matchId);
     if (room) {
       for (const socketId of room) {
         const socket = io.sockets.sockets.get(socketId);
         if (socket) {
+          console.log(`🔌 Disconnecting socket ${socket.id} from match room ${matchId}`);
           socket.leave(matchId);
           socket.disconnect(true);
         }
@@ -28,7 +30,29 @@ cron.schedule('* * * * *', () => {
   }
 
   console.log("✅ All matches and scores have been cleared.");
+
+  // Log all active rooms
+  console.log(`\n🕵️‍♂️ Current Rooms:`);
+  const allRooms = Array.from(io.sockets.adapter.rooms.keys());
+  const socketIds = new Set(io.sockets.sockets.keys());
+
+  allRooms.forEach((room) => {
+    const isPrivateSocketRoom = socketIds.has(room);
+    console.log(`• ${room} ${isPrivateSocketRoom ? '(private socket room)' : '(custom room)'}`);
+  });
+
+  // Log connected sockets and their listeners
+  console.log(`\n📡 Connected Sockets and Listeners:`);
+  for (const [socketId, socket] of io.sockets.sockets) {
+    console.log(`→ Socket ${socketId}`);
+    console.log(`   • Connected: ${socket.connected}`);
+    console.log(`   • Event Listeners: ${Array.from(socket.eventNames()).join(', ') || 'None'}`);
+    console.log(`   • Rooms: ${Array.from(socket.rooms).join(', ')}`);
+  }
+
+  console.log("🧼 Cleanup complete.\n");
 });
+  
 
 
 const io = new Server(httpServer, {
