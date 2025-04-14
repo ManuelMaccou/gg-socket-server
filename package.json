@@ -4,6 +4,7 @@
   "main": "server.js",
   "type": "module",
   "dependencies": {
+    "luxon": "^3.6.1",
     "node-cron": "^3.0.3",
     "socket.io": "^4.0.0"
   },
