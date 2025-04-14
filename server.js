@@ -4,7 +4,6 @@ import { Server } from "socket.io";
 const port = process.env.PORT || 3001;
 const httpServer = createServer();
 
-const roomTimers = {};
 const io = new Server(httpServer, {
   path: '/socket.io',
   cors: {
@@ -12,26 +11,6 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"]
   }
 });
-
-function logRoomState(io, matchId) {
-  const room = io.sockets.adapter.rooms.get(matchId);
-  const socketIds = room ? Array.from(room) : [];
-
-  console.log(`📊 Room [${matchId}] State:`);
-  console.log(`  • Active socket IDs in room:`, socketIds);
-
-  for (const socketId of socketIds) {
-    const socket = io.sockets.sockets.get(socketId);
-    if (socket) {
-      console.log(`  → Socket ${socket.id} is connected: ${socket.connected}`);
-      console.log(`    • Registered events:`, Array.from(socket.eventNames()));
-    }
-  }
-
-  console.log("📉 Total rooms on server:", Array.from(io.sockets.adapter.rooms.keys()));
-  console.log("📉 Total connected sockets:", io.engine.clientsCount);
-}
-
 
 /*
 const io = new Server(httpServer, {
@@ -75,24 +54,6 @@ io.on("connection", (socket) => {
     // If the matchId doesn't exist, create a new array for players
     if (!matches[matchId]) {
       matches[matchId] = [];
-
-      // Start 1-hour expiration timer for this match
-      roomTimers[matchId] = setTimeout(() => {
-        console.log(`⏰ Match ${matchId} expired after 1 hour.`);
-  
-        // Cleanup state
-        delete matches[matchId];
-        delete scores[matchId];
-        delete roomTimers[matchId];
-
-        logRoomState(io, matchId);
-  
-        // Broadcast expiration to all clients still in the room
-        io.to(matchId).emit("room-expired", { matchId });
-      // }, 60 * 60 * 1000); // 1 hour
-      // }, 60 * 1000); // 60 seconds
-      }, 10 * 1000); // 10 seconds
-
     }
 
     // Add the player to the match if they don't already exist
@@ -119,12 +80,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore, location }) => {
-    if (!matches[matchId]) {
-      socket.emit("room-expired", { matchId });
-      console.warn(`⚠️ Score submission blocked: Match ${matchId} is expired or missing.`);
-      return;
-    }
-
     console.log("Location received in submit-score:", location);
     if (!scores[matchId]) scores[matchId] = {};
     
@@ -182,15 +137,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("match-saved", ({ matchId }) => {
-    if (roomTimers[matchId]) {
-      clearTimeout(roomTimers[matchId]);
-      delete roomTimers[matchId];
-    }
-  
-    // Optionally: also clear match/scores to free memory
-    delete matches[matchId];
-    delete scores[matchId];
-
     console.log(`✅ Match ${matchId} successfully saved. Broadcasting to all clients.`);
     io.to(matchId).emit("match-saved", { success: true, message: "Match successfully saved!" });
   });
