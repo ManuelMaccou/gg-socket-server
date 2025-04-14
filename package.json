@@ -4,6 +4,7 @@
   "main": "server.js",
   "type": "module",
   "dependencies": {
+    "node-cron": "^3.0.3",
     "socket.io": "^4.0.0"
   },
   "scripts": {

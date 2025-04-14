@@ -1,8 +1,35 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
+import cron from "node-cron"
+import { DateTime } from "luxon";
 
 const port = process.env.PORT || 3001;
 const httpServer = createServer();
+
+// cron.schedule('0 10 * * *', () => {
+cron.schedule('* * * * *', () => {
+  const now = DateTime.now().setZone('America/Los_Angeles').toFormat('yyyy-LL-dd HH:mm:ss');
+  console.log(`🧹 Running nightly socket cleanup at ${now} PST`);
+
+  for (const matchId in matches) {
+    const room = io.sockets.adapter.rooms.get(matchId);
+    if (room) {
+      for (const socketId of room) {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.leave(matchId);
+          socket.disconnect(true);
+        }
+      }
+    }
+
+    delete matches[matchId];
+    delete scores[matchId];
+  }
+
+  console.log("✅ All matches and scores have been cleared.");
+});
+
 
 const io = new Server(httpServer, {
   path: '/socket.io',
