@@ -1,68 +1,8 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
-import cron from "node-cron"
-import { DateTime } from "luxon";
 
 const port = process.env.PORT || 3001;
 const httpServer = createServer();
-
-// cron.schedule('0 10 * * *', () => {
-  cron.schedule("* * * * *", () => {
-    const now = DateTime.now()
-      .setZone("America/Los_Angeles")
-      .toFormat("yyyy-LL-dd HH:mm:ss");
-    console.log(`\n🧹 Running socket cleanup at ${now} PST`);
-  
-    for (const matchId in matches) {
-      const room = io.sockets.adapter.rooms.get(matchId);
-      if (room) {
-        for (const socketId of room) {
-          const socket = io.sockets.sockets.get(socketId);
-          if (socket) {
-            console.log(
-              `🔌 Disconnecting socket ${socket.id} from match room ${matchId}`
-            );
-            socket.leave(matchId);
-            socket.disconnect(true); // This is async
-          }
-        }
-      }
-  
-      delete matches[matchId];
-      delete scores[matchId];
-    }
-  
-    console.log("✅ All matches and scores have been cleared.");
-  
-    // Wait a bit to allow disconnections to complete
-    setTimeout(() => {
-      // Separate rooms
-      const allRooms = Array.from(io.sockets.adapter.rooms.entries());
-      const socketIds = new Set(io.sockets.sockets.keys());
-  
-      console.log(`\n🕵️‍♂️ Active Custom Rooms (excluding private socket rooms):`);
-      allRooms.forEach(([room, sockets]) => {
-        const isPrivate = socketIds.has(room);
-        if (!isPrivate) {
-          console.log(`• ${room}: ${sockets.size} socket(s)`);
-        }
-      });
-  
-      console.log(`\n📡 Connected Sockets and Listeners:`);
-      for (const [socketId, socket] of io.sockets.sockets) {
-        console.log(`→ Socket ${socketId}`);
-        console.log(`   • Connected: ${socket.connected}`);
-        console.log(
-          `   • Event Listeners: ${
-            Array.from(socket.eventNames()).join(", ") || "None"
-          }`
-        );
-        console.log(`   • Rooms: ${Array.from(socket.rooms).join(", ")}`);
-      }
-  
-      console.log("🧼 Cleanup complete.\n");
-    }, 2000); // 2s delay
-  });
 
 const io = new Server(httpServer, {
   path: '/socket.io',
@@ -90,11 +30,16 @@ const matches = {};
 const scores = {};
 
 io.on("connection", (socket) => {
+  console.log("User connected: ", socket.id);
+
+  console.log(`Initial rooms for socket ${socket.id}: ${Array.from(socket.rooms).join(", ")}`);
+
   socket.onAny((event, ...args) => {
     console.log(`Received event: ${event}`, args);
   });
 
   socket.on("join-match", ({ matchId, userName, userId }) => {
+    console.log(`Rooms for socket ${socket.id} after joining: ${Array.from(socket.rooms).join(", ")}`);
 
     if (!userName) {
       console.error("User attempted to join without a username");
@@ -119,6 +64,7 @@ io.on("connection", (socket) => {
 
     socket.join(matchId);
     console.log(`${userName} joined match ${matchId}`);
+    console.log(`🔍 Current rooms for socket ${socket.id}: ${Array.from(socket.rooms).join(", ")}`);
     
     // Emit the current player list to everyone in the room
     io.to(matchId).emit("player-list", matches[matchId]);
@@ -134,6 +80,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore, location }) => {
+    console.log("Location received in submit-score:", location);
     if (!scores[matchId]) scores[matchId] = {};
     
     scores[matchId][userName] = { yourScore, opponentsScore };
@@ -169,6 +116,7 @@ io.on("connection", (socket) => {
         const team2Score = parseInt(opponentsScore, 10);
 
         console.log(`✅ Scores validated successfully for match: ${matchId}`);
+        console.log(`Emitting 'save-match' event to client with socket.id: ${socket.id}`);
 
         io.to(socket.id).emit("save-match", { 
           success: true,
