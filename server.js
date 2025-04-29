@@ -129,9 +129,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("match-saved", ({ matchId }) => {
-    console.log(`✅ Match ${matchId} successfully saved. Broadcasting to all clients.`);
-    io.to(matchId).emit("match-saved", { success: true, message: "Match successfully saved!" });
+  socket.on("match-saved", ({ matchId, earnedAchievements = [] }) => {
+    console.log(`✅ Match ${matchId} successfully saved. Broadcasting to all clients. Earned: ${earnedAchievements.length}`);
+  
+    io.to(matchId).emit("match-saved", {
+      success: true,
+      matchId,
+      message: "Match successfully saved!",
+      earnedAchievements,
+    });
   });
 
   socket.on("clear-scores", ({ matchId }) => {
