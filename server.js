@@ -165,7 +165,7 @@ io.on("connection", (socket) => {
       const winners = team1Score > team2Score ? team1Ids : team2Ids;
 
       // --- Step 2: Check DUPR Status (Example with a placeholder URL) ---
-      const duprCheckRes = await axios.post('http://localhost:3000/api/user/dupr-status', {
+      const duprCheckRes = await axios.post('http://localhost:3000/api/user/get-dupr-status', {
         userIds: allPlayerIds
       });
 
