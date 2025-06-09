@@ -1,6 +1,6 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
-const axios = require('axios');
+import axios from "axios";
 
 const port = process.env.PORT || 3001;
 const httpServer = createServer();
