@@ -32,6 +32,115 @@ const io = new Server(httpServer, {
 const matches = {};
 const scores = {};
 
+async function handleMatchSave(matchId, io) {
+  const matchData = matches[matchId];
+  const scoreData = scores[matchId]?.final;
+  const room = matchId; // The room name is the matchId
+
+  if (!matchData || !scoreData) {
+    console.error(`❌ Save requested for match ${matchId}, but data is missing.`);
+    return io.to(room).emit("match-saved", {
+        success: false,
+        message: "Server error: Match or score data is missing. Please refresh.",
+        matchId: matchId,
+        earnedAchievements: []
+    });
+  }
+
+  // Set a lock to prevent this from running more than once
+  if (matchData.isSaving) {
+    console.log(`🔒 Core save for match ${matchId} is already in progress. Ignoring.`);
+    return;
+  }
+
+  matchData.isSaving = true;
+  console.log(`⚙️ Starting core save process for match ${matchId}...`);
+
+  try {
+      if (!apiUrl) throw new Error("API_URL environment variable is not set!");
+
+    const { team1, team2, team1Score, team2Score, location } = scoreData;
+    const players = matchData; // Use the player list from the server's state
+
+    // --- Step 1: Prepare Match Data ---
+    const getPlayerIds = (playerNames) => {
+        return players
+            .filter(player => playerNames.includes(player.userName))
+            .map(player => player.userId);
+    };
+
+    const team1Ids = getPlayerIds(team1);
+    const team2Ids = getPlayerIds(team2);
+    const allPlayerIds = [...new Set([...team1Ids, ...team2Ids])];
+    const winners = team1Score > team2Score ? team1Ids : team2Ids;
+
+    // --- Step 2: Check DUPR Status (Example with a placeholder URL) ---
+    const duprCheckRes = await axios.post(`${apiUrl}/api/user/get-dupr-status`, {
+      userIds: allPlayerIds
+    });
+
+    const { users } = duprCheckRes.data;
+    const allDuprActivated = users.every((u) => u.dupr?.activated === true);
+
+    // --- Step 3: Save the Match ---
+
+    const matchResponse = await axios.post(`${apiUrl}/api/match`, {
+      matchId,
+      team1: { players: team1Ids, score: team1Score },
+      team2: { players: team2Ids, score: team2Score },
+      winners,
+      location,
+      ...(allDuprActivated && { logToDupr: true })
+    });
+
+    const newMatchId = matchResponse.data?.match?._id;
+    if (!newMatchId) {
+      // This is for the edge case where the API gives a 200 OK but bad data.
+      throw new Error("API returned a success status but was missing the match ID.");
+    }
+
+    // --- SUCCESS! NOW TELL THE CLIENT TO DO THE HEAVY LIFTING ---
+    console.log(`✅ Core match ${matchId} saved. Broadcasting to clients to claim update task.`);
+    io.to(room).emit("match-save-successful", {
+      // Pass all the data the client's `updateUserAndAchievements` function will need
+      team1Ids,
+      team2Ids,
+      winners,
+      location,
+      newMatchId,
+      team1Score,
+      team2Score
+    });
+
+  } catch (error) {
+    let errorMessage = "An unknown server error occurred.";
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx (e.g., 404, 500)
+      console.error(`❌ API Error for match ${matchId}:`, error.response.data);
+      // Use the error message from the API if it exists
+      errorMessage = error.response.data.error || `API responded with status ${error.response.status}`;
+    } else if (error.request) {
+      // The request was made but no response was received (e.g., network error)
+      console.error(`❌ Network Error for match ${matchId}:`, error.message);
+      errorMessage = "Could not connect to the API service.";
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error(`❌ Error setting up request for match ${matchId}:`, error.message);
+      errorMessage = error.message;
+    }
+
+    io.to(room).emit("match-saved", {
+        success: false,
+        message: errorMessage,
+        matchId: matchId,
+        earnedAchievements: []
+    });
+    
+    if(matches[matchId]) delete matches[matchId].isSaving;
+  }
+}
+
 io.on("connection", (socket) => {
   socket.onAny((event, ...args) => {
     console.log(`Received event: ${event}`, args);
@@ -125,6 +234,9 @@ io.on("connection", (socket) => {
         io.to(matchId).emit("scores-validated", { success: true });
         console.log("⚡ 'scores-validated' event broadcasted to match room");
 
+        // Server initiates the core save process automatically and only ONCE.
+        handleMatchSave(matchId, io);
+
       } else {
         io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
         console.log("Score mismatch detected for match:", matchId);
@@ -132,142 +244,39 @@ io.on("connection", (socket) => {
     }
   });
 
-
-
-  socket.on("client-requests-save-match", async ({ matchId }) => {
-    const matchData = matches[matchId];
-    const scoreData = scores[matchId]?.final;
-    const room = matchId; // The room name is the matchId
-
-    if (!matchData || !scoreData) {
-      console.error(`❌ Save requested for match ${matchId}, but data is missing.`);
-      return io.to(room).emit("match-saved", {
-          success: false,
-          message: "Server error: Match or score data is missing. Please refresh.",
-          matchId: matchId,
-          earnedAchievements: []
-      });
+  // This listener handles the race to claim the final task.
+  socket.on("claim-achievement-update-task", ({ matchId, data }) => {
+    if (matches[matchId] && matches[matchId].achievementTaskClaimed) {
+      console.log(`🔒 Task already claimed for ${matchId}. Ignoring request from ${socket.id}.`);
+      return;
     }
-
-    // --- This entire block is moved from your client's handleSaveMatch ---
-    try {
-      const { team1, team2, team1Score, team2Score, location } = scoreData;
-      const players = matchData; // Use the player list from the server's state
-
-      // --- Step 1: Prepare Match Data ---
-      const getPlayerIds = (playerNames) => {
-          return players
-              .filter(player => playerNames.includes(player.userName))
-              .map(player => player.userId);
-      };
-
-      const team1Ids = getPlayerIds(team1);
-      const team2Ids = getPlayerIds(team2);
-      const allPlayerIds = [...new Set([...team1Ids, ...team2Ids])];
-      const winners = team1Score > team2Score ? team1Ids : team2Ids;
-
-      // --- Step 2: Check DUPR Status (Example with a placeholder URL) ---
-      const duprCheckRes = await axios.post(`${apiUrl}/api/user/get-dupr-status`, {
-        userIds: allPlayerIds
-      });
-
-      const { users } = duprCheckRes.data;
-      const allDuprActivated = users.every((u) => u.dupr?.activated === true);
-
-      // --- Step 3: Save the Match ---
-
-      const matchResponse = await axios.post(`${apiUrl}/api/match`, {
-        matchId,
-        team1: { players: team1Ids, score: team1Score },
-        team2: { players: team2Ids, score: team2Score },
-        winners,
-        location,
-        ...(allDuprActivated && { logToDupr: true })
-      });
-
-      const newMatchId = matchResponse.data?.match?._id;
-      if (!newMatchId) {
-        // This is for the edge case where the API gives a 200 OK but bad data.
-        throw new Error("API returned a success status but was missing the match ID.");
-      }
-
-      // --- SUCCESS! NOW TELL THE CLIENT TO DO THE HEAVY LIFTING ---
-      console.log(`✅ Core match ${matchId} saved. Handing off to client for achievement updates.`);
-      io.to(room).emit("match-save-successful", {
-        // Pass all the data the client's `updateUserAndAchievements` function will need
-        team1Ids,
-        team2Ids,
-        winners,
-        location,
-        newMatchId,
-        team1Score,
-        team2Score
-      });
-
-    } catch (error) {
-      let errorMessage = "An unknown server error occurred.";
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx (e.g., 404, 500)
-        console.error(`❌ API Error for match ${matchId}:`, error.response.data);
-        // Use the error message from the API if it exists
-        errorMessage = error.response.data.error || `API responded with status ${error.response.status}`;
-      } else if (error.request) {
-        // The request was made but no response was received (e.g., network error)
-        console.error(`❌ Network Error for match ${matchId}:`, error.message);
-        errorMessage = "Could not connect to the API service.";
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error(`❌ Error setting up request for match ${matchId}:`, error.message);
-        errorMessage = error.message;
-      }
-
-      io.to(room).emit("match-saved", {
-          success: false,
-          message: errorMessage,
-          matchId: matchId,
-          earnedAchievements: []
-      });
+    if (matches[matchId]) {
+      matches[matchId].achievementTaskClaimed = true;
+      console.log(`🏆 Client ${socket.id} claimed the achievement update task for ${matchId}.`);
+      // Send private permission to the winner of the race.
+      io.to(socket.id).emit("permission-granted-for-update", data);
     }
   });
 
-  // --- NEW LISTENER for when the client is finished ---
+  // This listener handles the final result from the one "chosen" client.
   socket.on("client-finished-updates", ({ matchId, earnedAchievements, errorMessage }) => {
     const room = matchId;
-    if (errorMessage) {
-        // The core match saved, but achievements failed.
-        console.error(`⚠️ Match ${matchId} saved, but client failed to update achievements: ${errorMessage}`);
-        io.to(room).emit("match-saved", {
-            success: true, // The match itself WAS saved
-            message: "Match saved, but there was an issue updating achievements.",
-            matchId: matchId,
-            earnedAchievements: [], // No achievements were earned
-            partialFailure: true // Add a flag for more specific UI handling
-        });
-    } else {
-      // --- FULL SUCCESS ---
-      console.log(`🎉 Full success for match ${matchId}. Broadcasting final results.`);
-      io.to(room).emit("match-saved", {
-          success: true,
-          message: "Match and achievements successfully saved!",
-          matchId: matchId,
-          earnedAchievements: earnedAchievements || []
-      });
-    }
-     // Clean up server state for this match
-      io.to(room).emit("clear-scores", { matchId });
-      delete scores[matchId];
-      // You might also want to delete matches[matchId] here if the match is truly over.
+    const finalEventData = errorMessage ? {
+      success: true, message: "Match saved, but there was an issue updating achievements.",
+      matchId, earnedAchievements: [], partialFailure: true
+    } : {
+      success: true, message: "Match and achievements successfully saved!",
+      matchId, earnedAchievements: earnedAchievements || []
+    };
+    
+    io.to(room).emit("match-saved", finalEventData);
+    console.log(`🎉 Broadcasting final result for match ${matchId}.`);
+    
+    // Final cleanup
+    io.to(room).emit("clear-scores", { matchId });
+    delete scores[matchId];
+    delete matches[matchId];
   });
-
-
-
-
-
-
-
-
-
 
   socket.on("clear-scores", ({ matchId }) => {
     delete scores[matchId];
