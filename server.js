@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { createServer } from "http";
 import { Server } from "socket.io";
 import axios from "axios";
@@ -173,7 +174,7 @@ io.on("connection", (socket) => {
       const allDuprActivated = users.every((u) => u.dupr?.activated === true);
 
       // --- Step 3: Save the Match ---
-      const apiUrl = process.env.API_URL || 'http://localhost:3000';
+      const apiUrl = process.env.API_URL;
       const matchResponse = await axios.post(`${apiUrl}/api/match`, {
         matchId,
         team1: { players: team1Ids, score: team1Score },
