@@ -5,6 +5,7 @@ import axios from "axios";
 
 const port = process.env.PORT || 3001;
 const httpServer = createServer();
+const apiUrl = process.env.API_URL;
 
 const io = new Server(httpServer, {
   path: '/socket.io',
@@ -166,7 +167,7 @@ io.on("connection", (socket) => {
       const winners = team1Score > team2Score ? team1Ids : team2Ids;
 
       // --- Step 2: Check DUPR Status (Example with a placeholder URL) ---
-      const duprCheckRes = await axios.post('http://localhost:3000/api/user/get-dupr-status', {
+      const duprCheckRes = await axios.post(`${apiUrl}/api/user/get-dupr-status`, {
         userIds: allPlayerIds
       });
 
@@ -174,7 +175,7 @@ io.on("connection", (socket) => {
       const allDuprActivated = users.every((u) => u.dupr?.activated === true);
 
       // --- Step 3: Save the Match ---
-      const apiUrl = process.env.API_URL;
+
       const matchResponse = await axios.post(`${apiUrl}/api/match`, {
         matchId,
         team1: { players: team1Ids, score: team1Score },
