@@ -130,6 +130,12 @@ async function handleMatchSave(matchId, io) {
   } catch (error) {
     let errorMessage = "An unknown server error occurred.";
     if (error.response) {
+      console.error('Full error response:', {
+      status: error.response.status,
+      headers: error.response.headers,
+      data: error.response.data,
+    });
+    
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx (e.g., 404, 500)
       console.error(`❌ API Error for match ${matchId}:`, error.response.data);
