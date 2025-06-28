@@ -48,13 +48,9 @@ async function handleMatchSave(matchId, io) {
   }
 
   // Set a lock to prevent this from running more than once
-  if (matchData.isSaving) {
-    console.log(`🔒 Core save for match ${matchId} is already in progress. Ignoring.`);
-    return;
-  }
+  if (matchData.isSaving) return;
 
   matchData.isSaving = true;
-  console.log(`⚙️ Starting core save process for match ${matchId}...`);
 
   try {
       if (!apiUrl) throw new Error("API_URL environment variable is not set!");
@@ -91,7 +87,13 @@ async function handleMatchSave(matchId, io) {
       winners,
       location,
       ...(allDuprActivated && { logToDupr: true })
-    });
+    },
+      {
+        headers: {
+          'x-api-key': process.env.INTERNAL_API_KEY,
+        }
+      }
+    );
 
     const newMatchId = matchResponse.data?.match?._id;
     if (!newMatchId) {
@@ -100,7 +102,6 @@ async function handleMatchSave(matchId, io) {
     }
 
     // --- SUCCESS! NOW TELL THE CLIENT TO DO THE HEAVY LIFTING ---
-    console.log(`✅ Core match ${matchId} saved. Broadcasting to clients to claim update task.`);
     io.to(room).emit("match-save-successful", {
       // Pass all the data the client's `updateUserAndAchievements` function will need
       team1Ids,
@@ -142,9 +143,6 @@ async function handleMatchSave(matchId, io) {
 }
 
 io.on("connection", (socket) => {
-  socket.onAny((event, ...args) => {
-    console.log(`Received event: ${event}`, args);
-  });
 
   socket.on("join-match", ({ matchId, userName, userId }) => {
 
@@ -170,7 +168,6 @@ io.on("connection", (socket) => {
     }
 
     socket.join(matchId);
-    console.log(`${userName} joined match ${matchId}`);
     
     // Emit the current player list to everyone in the room
     io.to(matchId).emit("player-list", matches[matchId]);
@@ -195,32 +192,22 @@ io.on("connection", (socket) => {
       ...scores[matchId][key]
     }));
 
-    console.log("All scores:", allScores);
-
     if (allScores.length === 4) {  // All players have submitted scores
       const team1Scores = allScores.filter(player => team1.includes(player.userName));
-      console.log("Team 1 scores:", team1Scores);
-
       const team2Scores = allScores.filter(player => team2.includes(player.userName));
-      console.log("Team 2 scores:", team2Scores);
-
       const team1Valid = team1Scores.every(player => 
         player.yourScore === team1Scores[0].yourScore &&
         player.opponentsScore === team1Scores[0].opponentsScore
       );
-      console.log("Team 1 valid:", team1Valid);
 
       const team2Valid = team2Scores.every(player => 
         player.yourScore === team2Scores[0].yourScore &&
         player.opponentsScore === team2Scores[0].opponentsScore
       );
-      console.log("Team 2 valid:", team2Valid);
 
       if (team1Valid && team2Valid) {
         const team1Score = parseInt(yourScore, 10);
         const team2Score = parseInt(opponentsScore, 10);
-
-        console.log(`✅ Scores validated successfully for match: ${matchId}`);
 
         if (!scores[matchId]) scores[matchId] = {};
         scores[matchId].final = {
@@ -232,27 +219,22 @@ io.on("connection", (socket) => {
         };
 
         io.to(matchId).emit("scores-validated", { success: true });
-        console.log("⚡ 'scores-validated' event broadcasted to match room");
 
         // Server initiates the core save process automatically and only ONCE.
         handleMatchSave(matchId, io);
 
       } else {
         io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
-        console.log("Score mismatch detected for match:", matchId);
       }
     }
   });
 
   // This listener handles the race to claim the final task.
   socket.on("claim-achievement-update-task", ({ matchId, data }) => {
-    if (matches[matchId] && matches[matchId].achievementTaskClaimed) {
-      console.log(`🔒 Task already claimed for ${matchId}. Ignoring request from ${socket.id}.`);
-      return;
-    }
+    if (matches[matchId] && matches[matchId].achievementTaskClaimed) return;
+    
     if (matches[matchId]) {
       matches[matchId].achievementTaskClaimed = true;
-      console.log(`🏆 Client ${socket.id} claimed the achievement update task for ${matchId}.`);
       // Send private permission to the winner of the race.
       io.to(socket.id).emit("permission-granted-for-update", data);
     }
@@ -270,7 +252,6 @@ io.on("connection", (socket) => {
     };
     
     io.to(room).emit("match-saved", finalEventData);
-    console.log(`🎉 Broadcasting final result for match ${matchId}.`);
     
     // Final cleanup
     io.to(room).emit("clear-scores", { matchId });
@@ -280,11 +261,9 @@ io.on("connection", (socket) => {
 
   socket.on("clear-scores", ({ matchId }) => {
     delete scores[matchId];
-    console.log(`Scores cleared for match: ${matchId}`);
   });
 
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
 
     // Remove the player from the match on disconnect
     for (const matchId in matches) {
