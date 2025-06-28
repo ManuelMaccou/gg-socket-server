@@ -71,6 +71,10 @@ async function handleMatchSave(matchId, io) {
     const winners = team1Score > team2Score ? team1Ids : team2Ids;
 
     // --- Step 2: Check DUPR Status (Example with a placeholder URL) ---
+    console.error('POSTing to:', `${apiUrl}/api/user/get-dupr-status`);
+    console.log('Using headers:', { 'x-api-key': process.env.INTERNAL_API_KEY });
+    console.error('Payload:', { userIds: allPlayerIds });
+
     const duprCheckRes = await axios.post(`${apiUrl}/api/user/get-dupr-status`, {
       userIds: allPlayerIds
     });
@@ -79,6 +83,16 @@ async function handleMatchSave(matchId, io) {
     const allDuprActivated = users.every((u) => u.dupr?.activated === true);
 
     // --- Step 3: Save the Match ---
+    console.error('POSTing to:', `${apiUrl}/api/match`);
+    console.log('Using headers:', { 'x-api-key': process.env.INTERNAL_API_KEY });
+    console.error('Payload:', {
+      matchId,
+      team1: { players: team1Ids, score: team1Score },
+      team2: { players: team2Ids, score: team2Score },
+      winners,
+      location,
+      ...(allDuprActivated && { logToDupr: true })
+    });
 
     const matchResponse = await axios.post(`${apiUrl}/api/match`, {
       matchId,
