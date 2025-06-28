@@ -5,7 +5,7 @@ import axios from "axios";
 
 const port = process.env.PORT || 3001;
 const httpServer = createServer();
-const apiUrl = process.env.API_URL;
+const apiUrl = process.env.API_URL?.replace(/\/$/, '');
 
 const io = new Server(httpServer, {
   path: '/socket.io',
@@ -135,7 +135,7 @@ async function handleMatchSave(matchId, io) {
       headers: error.response.headers,
       data: error.response.data,
     });
-    
+
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx (e.g., 404, 500)
       console.error(`❌ API Error for match ${matchId}:`, error.response.data);
