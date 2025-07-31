@@ -203,48 +203,81 @@ io.on("connection", (socket) => {
   });
 
   socket.on("submit-score", ({ matchId, userName, team1, team2, yourScore, opponentsScore, location }) => {
+    // --- Logging added for debugging ---
+    console.log(`[${matchId}] Score received from ${userName}: Your Score ${yourScore}, Opponent's Score ${opponentsScore}`);
+
     if (!scores[matchId]) scores[matchId] = {};
     
-    scores[matchId][userName] = { yourScore, opponentsScore };
+    // 1. ParseInt immediately and store the score
+    scores[matchId][userName] = { 
+        yourScore: parseInt(yourScore, 10), 
+        opponentsScore: parseInt(opponentsScore, 10) 
+    };
 
-    const allScores = Object.keys(scores[matchId]).map(key => ({
-      userName: key,
-      ...scores[matchId][key]
+    // 2. THIS IS THE BUG FIX: Convert the scores object to an array, preserving the userName
+    const allSubmittedScores = Object.entries(scores[matchId]).map(([uName, scoreData]) => ({
+      userName: uName,
+      ...scoreData
     }));
 
-    if (allScores.length === 4) {  // All players have submitted scores
-      const team1Scores = allScores.filter(player => team1.includes(player.userName));
-      const team2Scores = allScores.filter(player => team2.includes(player.userName));
-      const team1Valid = team1Scores.every(player => 
-        player.yourScore === team1Scores[0].yourScore &&
-        player.opponentsScore === team1Scores[0].opponentsScore
+    const expectedPlayerCount = matches[matchId]?.length || 4;
+
+    // --- Logging added for debugging ---
+    console.log(`[${matchId}] ${allSubmittedScores.length} of ${expectedPlayerCount} scores submitted.`);
+
+    if (allSubmittedScores.length === expectedPlayerCount) {
+      // --- Logging added for debugging ---
+      console.log(`[${matchId}] All scores received. Starting validation...`);
+      console.log(`[${matchId}] Full submitted score data:`, allSubmittedScores);
+
+      const team1Scores = allSubmittedScores.filter(player => team1.includes(player.userName));
+      const team2Scores = allSubmittedScores.filter(player => team2.includes(player.userName));
+
+      // --- Logging added for debugging ---
+      console.log(`[${matchId}] Filtered Team 1 Scores:`, team1Scores);
+      console.log(`[${matchId}] Filtered Team 2 Scores:`, team2Scores);
+
+      // 3. Check for intra-team agreement first, with safety checks
+      const team1Valid = team1Scores.length > 0 && team1Scores.every(p => 
+        p.yourScore === team1Scores[0].yourScore && p.opponentsScore === team1Scores[0].opponentsScore
+      );
+      const team2Valid = team2Scores.length > 0 && team2Scores.every(p => 
+        p.yourScore === team2Scores[0].yourScore && p.opponentsScore === team2Scores[0].opponentsScore
       );
 
-      const team2Valid = team2Scores.every(player => 
-        player.yourScore === team2Scores[0].yourScore &&
-        player.opponentsScore === team2Scores[0].opponentsScore
-      );
+      // --- Logging added for debugging ---
+      console.log(`[${matchId}] Intra-team agreement check -> Team 1 Valid: ${team1Valid}, Team 2 Valid: ${team2Valid}`);
 
-      if (team1Valid && team2Valid) {
-        const team1Score = parseInt(yourScore, 10);
-        const team2Score = parseInt(opponentsScore, 10);
+      if (!team1Valid || !team2Valid) {
+        // --- Logging added for debugging ---
+        console.error(`[${matchId}] ❌ FAILURE: Intra-team scores do not match. Emitting error to client.`);
+        return io.to(matchId).emit("scores-validated", { success: false, message: "Scores within a team do not match. Please try again." });
+      }
 
-        if (!scores[matchId]) scores[matchId] = {};
-        scores[matchId].final = {
-            team1,
-            team2,
-            team1Score,
-            team2Score,
-            location
-        };
+      // 4. Use the concise cross-agreement check
+      const crossAgree = 
+        team1Scores[0].yourScore === team2Scores[0].opponentsScore &&
+        team1Scores[0].opponentsScore === team2Scores[0].yourScore;
 
+      // --- Logging added for debugging ---
+      console.log(`[${matchId}] Cross-team agreement check -> Match: ${crossAgree}`);
+      
+      if (crossAgree) {
+        // SUCCESS!
+        const team1Score = team1Scores[0].yourScore;
+        const team2Score = team2Scores[0].yourScore;
+
+        // --- Logging added for debugging ---
+        console.log(`[${matchId}] ✅ SUCCESS: All scores match. Final validated score: ${team1Score}-${team2Score}`);
+
+        scores[matchId].final = { team1, team2, team1Score, team2Score, location };
         io.to(matchId).emit("scores-validated", { success: true });
-
-        // Server initiates the core save process automatically and only ONCE.
         handleMatchSave(matchId, io);
 
       } else {
-        io.to(matchId).emit("scores-validated", { success: false, message: "Scores do not match. Please try again." });
+        // --- Logging added for debugging ---
+        console.error(`[${matchId}] ❌ FAILURE: Cross-team scores do not match. Emitting error to client.`);
+        io.to(matchId).emit("scores-validated", { success: false, message: "The scores submitted by the two teams do not match. Please confirm and resubmit." });
       }
     }
   });
