@@ -94,8 +94,10 @@ async function handleMatchSave(matchId, io) {
       ...(allDuprActivated && { logToDupr: true })
     });
 
+    const matchDate = new Date()
     const matchResponse = await axios.post(`${apiUrl}/api/match`, {
       matchId,
+      matchDate,
       team1: { players: team1Ids, score: team1Score },
       team2: { players: team2Ids, score: team2Score },
       winners,
