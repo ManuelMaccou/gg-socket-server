@@ -120,13 +120,16 @@ async function handleMatchSave(matchId, io) {
     // --- SUCCESS! NOW TELL THE CLIENT TO DO THE HEAVY LIFTING ---
     io.to(room).emit("match-save-successful", {
       // Pass all the data the client's `updateUserAndAchievements` function will need
+      matchDate,
       team1Ids,
       team2Ids,
       winners,
       location,
       newMatchId,
       team1Score,
-      team2Score
+      team2Score,
+      isHistorical: false,
+      isGlobalContex: false,
     });
 
   } catch (error) {
